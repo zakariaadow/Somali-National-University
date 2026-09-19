@@ -1,0 +1,10 @@
+.env
+.env.*
+!.env.example
+instance/*.db
+instance/*.db-journal
+instance/snu_mirror.db
+__pycache__/
+*.pyc
+logs/
+uploads/

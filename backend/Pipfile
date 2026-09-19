@@ -1,0 +1,30 @@
+# backend/Pipfile
+
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+flask = "*"
+flask-sqlalchemy = "*"
+flask-migrate = "*"
+flask-login = "*"
+flask-session = "*"
+python-dotenv = "*"
+werkzeug = "==2.3.6"
+pillow = "*"
+reportlab = "==4.0.4"
+qrcode = "==7.4.2"
+requests = "==2.31.0"
+email-validator = "==2.0.0"
+flask-cors = "*"
+psycopg2-binary = "*"
+
+[dev-packages]
+pytest = "==7.4.0"
+black = "==23.7.0"
+flake8 = "==6.1.0"
+
+[requires]
+python_version = "3.12"
