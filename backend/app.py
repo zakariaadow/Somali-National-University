@@ -23,19 +23,23 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    # ---- CORS (from env, falls back to localhost) ----
+    # ---- CORS (from env, comma-separated) ----
     cors_origins = os.getenv(
         'CORS_ORIGINS',
         'http://localhost:3000,http://127.0.0.1:3000'
     ).split(',')
-    CORS(app, origins=[o.strip() for o in cors_origins],
+    cors_origins = [o.strip() for o in cors_origins if o.strip()]
+
+    CORS(app, origins=cors_origins,
          supports_credentials=True,
          allow_headers=['Content-Type', 'Authorization', 'X-Requested-With'],
          methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
+    print(f"🌐 CORS allowed origins: {cors_origins}")
 
     # ---- Database URI ----
     db_path = app.config['SQLALCHEMY_DATABASE_URI']
-    print(f"📁 Database URI: {db_path}")
+    safe_db_path = db_path.split('@')[0].split(':')[0] + '://***@' + db_path.split('@')[-1] if '@' in db_path else db_path
+    print(f"📁 Database URI: {safe_db_path}")
 
     # ---- Supabase bind (SQLAlchemy) ----
     neon_url = os.getenv('NEON_DATABASE_URL')
@@ -55,15 +59,38 @@ def create_app():
     login_manager.init_app(app)
     mail.init_app(app)
     csrf.init_app(app)
-    sess.init_app(app)
+
+    # Flask-Session is optional; skip if SESSION_TYPE isn't set
+    if app.config.get('SESSION_TYPE'):
+        sess.init_app(app)
+
+    # ---- Per-request DB session cleanup (fixes SSL drops) ----
+    @app.teardown_request
+    def cleanup_db_session(exception=None):
+        if exception:
+            try:
+                db.session.rollback()
+            except Exception:
+                pass
+        try:
+            db.session.remove()
+        except Exception:
+            pass
 
     # ---- Routes ----
     register_blueprints(app)
     print("✅ All routes registered!")
 
-    # ---- Supabase push loop (background thread) ----
-    from mirror import start_mirror
-    start_mirror()
+    # ---- Supabase push loop (only in dev) ----
+    if app.config.get('MIRROR_ENABLED') or os.getenv('MIRROR_ENABLED', 'False').lower() == 'true':
+        try:
+            from mirror import start_mirror
+            start_mirror()
+            print("🔄 Mirror push loop started")
+        except Exception as e:
+            print(f"⚠️  Mirror startup warning: {e}")
+    else:
+        print("ℹ️  Mirror disabled (production mode)")
 
     # ---- Upload folders ----
     from utils.file_upload import create_upload_folder
@@ -80,7 +107,7 @@ def create_app():
         os.makedirs('logs')
 
     # ================================================================
-    # ---- DB initialization + seeding (runs under gunicorn AND flask run) ----
+    # ---- DB init + seeding (runs under gunicorn AND flask run) ----
     # ================================================================
     with app.app_context():
         try:
@@ -96,8 +123,11 @@ def create_app():
             print("✅ All models imported successfully!")
 
             print("📊 Creating database tables...")
-            db.create_all()
-            print("✅ Tables created/verified")
+            try:
+                db.create_all()
+                print("✅ Tables created/verified")
+            except Exception as te:
+                print(f"⚠️  db.create_all warning (benign if tables exist): {te}")
 
             print("👤 Ensuring default roles...")
             from models import Role
@@ -131,9 +161,7 @@ def create_app():
                     is_active=True,
                     is_verified=True
                 )
-                admin_user.set_password(
-                    os.getenv('ADMIN_PASSWORD', 'Admin@2024')
-                )
+                admin_user.set_password(os.getenv('ADMIN_PASSWORD', 'Admin@2024'))
                 db.session.add(admin_user)
                 db.session.commit()
                 print(f"✅ Admin user created: {admin_username}")
