@@ -22,8 +22,8 @@ class Config:
 
     # ---- Connection pool (fixes Supabase SSL decryption errors) ----
     SQLALCHEMY_ENGINE_OPTIONS = {
-        'pool_pre_ping': True,       # verify connection before use
-        'pool_recycle': 300,          # recycle connections every 5 min
+        'pool_pre_ping': True,
+        'pool_recycle': 300,
         'pool_size': 5,
         'max_overflow': 10,
         'pool_timeout': 30,
@@ -38,13 +38,15 @@ class Config:
     }
 
     # ---- Session ----
-    # Using Flask default signed cookies (multi-worker safe).
+    # Flask default signed cookies (multi-worker safe).
     PERMANENT_SESSION_LIFETIME = timedelta(days=7)
 
     SESSION_COOKIE_NAME = 'snu_session'
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SECURE = os.environ.get('SESSION_COOKIE_SECURE', 'False').lower() == 'true'
     SESSION_COOKIE_SAMESITE = os.environ.get('SESSION_COOKIE_SAMESITE', 'Lax')
+    SESSION_COOKIE_DOMAIN = None      # ← CRITICAL for cross-origin proxy
+    SESSION_COOKIE_PATH = '/'
 
     # ---- Mail ----
     MAIL_SERVER = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')

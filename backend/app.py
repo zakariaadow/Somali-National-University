@@ -2,6 +2,7 @@
 import os
 import sys
 from dotenv import load_dotenv
+from datetime import timedelta
 
 # Load .env BEFORE importing anything that reads env vars
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
@@ -22,6 +23,15 @@ from routes import register_blueprints
 def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
+
+    # ---- Explicitly apply session cookie settings (overrides Config if needed) ----
+    app.config['SESSION_COOKIE_NAME'] = 'snu_session'
+    app.config['SESSION_COOKIE_HTTPONLY'] = True
+    app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE', 'False').lower() == 'true'
+    app.config['SESSION_COOKIE_SAMESITE'] = os.getenv('SESSION_COOKIE_SAMESITE', 'Lax')
+    app.config['SESSION_COOKIE_DOMAIN'] = None
+    app.config['SESSION_COOKIE_PATH'] = '/'
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 
     # ---- CORS (from env, comma-separated) ----
     cors_origins = os.getenv(
@@ -60,11 +70,10 @@ def create_app():
     mail.init_app(app)
     csrf.init_app(app)
 
-    # Flask-Session is optional; skip if SESSION_TYPE isn't set
     if app.config.get('SESSION_TYPE'):
         sess.init_app(app)
 
-    # ---- Per-request DB session cleanup (fixes SSL drops) ----
+    # ---- Per-request DB session cleanup ----
     @app.teardown_request
     def cleanup_db_session(exception=None):
         if exception:
@@ -106,9 +115,7 @@ def create_app():
     if not os.path.exists('logs'):
         os.makedirs('logs')
 
-    # ================================================================
-    # ---- DB init + seeding (runs under gunicorn AND flask run) ----
-    # ================================================================
+    # ---- DB init + seeding ----
     with app.app_context():
         try:
             print("\n📦 Importing models...")
