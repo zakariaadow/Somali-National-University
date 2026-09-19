@@ -7,7 +7,7 @@ from datetime import timedelta
 # Load .env BEFORE importing anything that reads env vars
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), '.env'))
 
-from flask import Flask
+from flask import Flask, jsonify, request as flask_request, redirect
 from flask_cors import CORS
 from datetime import datetime
 
@@ -24,7 +24,7 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    # ---- Explicitly apply session cookie settings (overrides Config if needed) ----
+    # ---- Session cookie settings ----
     app.config['SESSION_COOKIE_NAME'] = 'snu_session'
     app.config['SESSION_COOKIE_HTTPONLY'] = True
     app.config['SESSION_COOKIE_SECURE'] = os.getenv('SESSION_COOKIE_SECURE', 'False').lower() == 'true'
@@ -33,7 +33,7 @@ def create_app():
     app.config['SESSION_COOKIE_PATH'] = '/'
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 
-    # ---- CORS (from env, comma-separated) ----
+    # ---- CORS ----
     cors_origins = os.getenv(
         'CORS_ORIGINS',
         'http://localhost:3000,http://127.0.0.1:3000'
@@ -46,12 +46,12 @@ def create_app():
          methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
     print(f"🌐 CORS allowed origins: {cors_origins}")
 
-    # ---- Database URI ----
+    # ---- Database URI (masked) ----
     db_path = app.config['SQLALCHEMY_DATABASE_URI']
     safe_db_path = db_path.split('@')[0].split(':')[0] + '://***@' + db_path.split('@')[-1] if '@' in db_path else db_path
     print(f"📁 Database URI: {safe_db_path}")
 
-    # ---- Supabase bind (SQLAlchemy) ----
+    # ---- Supabase bind ----
     neon_url = os.getenv('NEON_DATABASE_URL')
     if neon_url:
         if neon_url.startswith('postgresql://'):
@@ -69,6 +69,22 @@ def create_app():
     login_manager.init_app(app)
     mail.init_app(app)
     csrf.init_app(app)
+
+    # ============================================================
+    # ⭐ THE FIX: Return JSON 401 for unauthenticated API requests
+    # instead of redirecting to HTML /login (which caused the loop)
+    # ============================================================
+    @login_manager.unauthorized_handler
+    def unauthorized():
+        # For API requests → clean JSON 401
+        if flask_request.path.startswith('/api/'):
+            return jsonify({
+                'error': 'Not authenticated',
+                'message': 'Please log in',
+                'authenticated': False
+            }), 401
+        # For HTML routes → redirect to login page
+        return redirect('/login')
 
     if app.config.get('SESSION_TYPE'):
         sess.init_app(app)
@@ -90,7 +106,7 @@ def create_app():
     register_blueprints(app)
     print("✅ All routes registered!")
 
-    # ---- Supabase push loop (only in dev) ----
+    # ---- Supabase push loop (dev only) ----
     if app.config.get('MIRROR_ENABLED') or os.getenv('MIRROR_ENABLED', 'False').lower() == 'true':
         try:
             from mirror import start_mirror

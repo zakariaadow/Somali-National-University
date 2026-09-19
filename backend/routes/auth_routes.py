@@ -19,13 +19,11 @@ def register():
         data = request.get_json()
         print(f"📝 Registration data received: {data}")
 
-        # Validate required fields
         required_fields = ['username', 'email', 'password', 'first_name', 'last_name']
         for field in required_fields:
             if not data.get(field):
                 return jsonify({'error': f'{field} is required'}), 400
 
-        # Validate programme_id (required for students)
         programme_id = data.get('programme_id')
         if not programme_id:
             return jsonify({'error': 'Please select a programme'}), 400
@@ -34,13 +32,11 @@ def register():
         if not programme:
             return jsonify({'error': 'Invalid programme selected'}), 400
 
-        # Check if user already exists
         if User.query.filter_by(email=data['email']).first():
             return jsonify({'error': 'Email already registered'}), 400
         if User.query.filter_by(username=data['username']).first():
             return jsonify({'error': 'Username already taken'}), 400
 
-        # Create user
         user = User(
             username=data['username'],
             email=data['email'],
@@ -48,19 +44,17 @@ def register():
             last_name=data['last_name'],
             middle_name=data.get('middle_name', ''),
             phone=data.get('phone', ''),
-            role_id=data.get('role_id', 2)  # Default: Student
+            role_id=data.get('role_id', 2)
         )
         user.set_password(data['password'])
         db.session.add(user)
         db.session.flush()
 
-        # Generate registration number
         registration_number = (
             data.get('registration_number')
             or generate_registration_number()
         )
 
-        # Create student profile with programme_id ALWAYS set
         student = Student(
             registration_number=registration_number,
             admission_date=datetime.now().date(),
@@ -70,7 +64,6 @@ def register():
         )
         db.session.add(student)
 
-        # Log activity
         log = ActivityLog(
             user_id=user.id,
             action='REGISTER',
@@ -95,14 +88,22 @@ def register():
         return jsonify({'error': str(e)}), 500
 
 
-@auth_bp.route('/login', methods=['POST'])
+@auth_bp.route('/login', methods=['GET', 'POST'])
 def login():
-    """User login"""
+    """User login. GET returns JSON 401 to avoid 405 redirect loop."""
+    # ⭐ THE FIX: Handle GET requests with a clean 401
+    if request.method == 'GET':
+        return jsonify({
+            'error': 'Not authenticated',
+            'message': 'Please log in',
+            'authenticated': False
+        }), 401
+
     try:
         data = request.get_json()
-        print(f"🔐 Login attempt: {data.get('email')}")
+        print(f"🔐 Login attempt: {data.get('email') if data else 'no data'}")
 
-        if not data.get('email') or not data.get('password'):
+        if not data or not data.get('email') or not data.get('password'):
             return jsonify({'error': 'Email and password are required'}), 400
 
         user = User.query.filter_by(email=data['email']).first()
