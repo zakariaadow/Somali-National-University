@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 
@@ -9,6 +9,10 @@ const Register = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
+
+  const [programmes, setProgrammes] = useState([]);
+  const [programmesLoading, setProgrammesLoading] = useState(true);
+
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -18,14 +22,25 @@ const Register = () => {
     last_name: '',
     middle_name: '',
     phone: '',
-    registration_number: ''
+    programme_id: '',
+    year_of_study: 1,
   });
 
+  // Load programmes on mount
+  useEffect(() => {
+    axios
+      .get(`${API_BASE_URL}/programmes?is_active=true&per_page=100`)
+      .then((res) => {
+        setProgrammes(res.data.programmes || res.data || []);
+      })
+      .catch((err) => {
+        console.error('Failed to load programmes:', err);
+      })
+      .finally(() => setProgrammesLoading(false));
+  }, []);
+
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    });
+    setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
   const handleSubmit = async (e) => {
@@ -40,9 +55,13 @@ const Register = () => {
       setLoading(false);
       return;
     }
-
     if (formData.password.length < 8) {
       setError('Password must be at least 8 characters');
+      setLoading(false);
+      return;
+    }
+    if (!formData.programme_id) {
+      setError('Please select a programme');
       setLoading(false);
       return;
     }
@@ -56,21 +75,20 @@ const Register = () => {
         last_name: formData.last_name,
         middle_name: formData.middle_name || '',
         phone: formData.phone || '',
-        registration_number: formData.registration_number || `SNU-${new Date().getFullYear()}-${Math.random().toString(36).substring(2, 6).toUpperCase()}`,
-        role_id: 2 // Student role
+        programme_id: parseInt(formData.programme_id),
+        year_of_study: parseInt(formData.year_of_study) || 1,
+        role_id: 2, // Student
       };
 
-      const response = await axios.post(`${API_BASE_URL}/auth/register`, registerData, {
-        withCredentials: true
-      });
-      
+      const response = await axios.post(
+        `${API_BASE_URL}/auth/register`,
+        registerData,
+        { withCredentials: true }
+      );
+
       if (response.data.message === 'Registration successful') {
         setSuccess(true);
-        
-        // Redirect to login after 2 seconds
-        setTimeout(() => {
-          navigate('/login');
-        }, 2000);
+        setTimeout(() => navigate('/login'), 2000);
       }
     } catch (err) {
       console.error('Registration error:', err);
@@ -83,30 +101,26 @@ const Register = () => {
   return (
     <div className="min-h-screen bg-gray-900 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-2xl w-full space-y-8">
-        {/* Logo/Branding */}
         <div className="text-center">
           <div className="flex justify-center">
-            <img 
-              src="/WhatsApp%20Image%202026-07-18%20at%2010.18.04.jpeg" 
-              alt="Somali National University Logo" 
+            <img
+              src="/SNU.jpeg"
+              alt="Somali National University Logo"
               className="h-20 w-20 object-cover rounded-full shadow-2xl border-4 border-blue-500"
             />
           </div>
-          <h2 className="mt-4 text-3xl font-extrabold text-white">
-            Create Account
-          </h2>
+          <h2 className="mt-4 text-3xl font-extrabold text-white">Create Account</h2>
           <p className="mt-2 text-sm text-gray-400">
             Join Somali National University - Start your journey today
           </p>
         </div>
 
-        {/* Registration Card */}
         <div className="bg-gray-800 py-8 px-6 shadow-2xl rounded-lg sm:px-10 border border-gray-700">
           <div className="mb-6">
             <h3 className="text-lg font-semibold text-white">Student Registration</h3>
             <p className="text-sm text-gray-400">Create your account to get started</p>
           </div>
-          
+
           {error && (
             <div className="mb-4 p-3 bg-red-900/30 border border-red-700 text-red-300 rounded-lg flex items-start">
               <svg className="h-5 w-5 text-red-400 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
@@ -115,7 +129,7 @@ const Register = () => {
               <span>{error}</span>
             </div>
           )}
-          
+
           {success && (
             <div className="mb-4 p-3 bg-green-900/30 border border-green-700 text-green-300 rounded-lg flex items-start">
               <svg className="h-5 w-5 text-green-400 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
@@ -131,35 +145,31 @@ const Register = () => {
                 <label htmlFor="first_name" className="block text-sm font-medium text-gray-300">
                   First Name *
                 </label>
-                <div className="mt-1">
-                  <input
-                    type="text"
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg shadow-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-150"
-                    id="first_name"
-                    name="first_name"
-                    placeholder="Enter first name"
-                    value={formData.first_name}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
+                <input
+                  type="text"
+                  id="first_name"
+                  name="first_name"
+                  className="mt-1 w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter first name"
+                  value={formData.first_name}
+                  onChange={handleChange}
+                  required
+                />
               </div>
               <div>
                 <label htmlFor="last_name" className="block text-sm font-medium text-gray-300">
                   Last Name *
                 </label>
-                <div className="mt-1">
-                  <input
-                    type="text"
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg shadow-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-150"
-                    id="last_name"
-                    name="last_name"
-                    placeholder="Enter last name"
-                    value={formData.last_name}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
+                <input
+                  type="text"
+                  id="last_name"
+                  name="last_name"
+                  className="mt-1 w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Enter last name"
+                  value={formData.last_name}
+                  onChange={handleChange}
+                  required
+                />
               </div>
             </div>
 
@@ -167,69 +177,105 @@ const Register = () => {
               <label htmlFor="middle_name" className="block text-sm font-medium text-gray-300">
                 Middle Name (optional)
               </label>
-              <div className="mt-1">
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg shadow-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-150"
-                  id="middle_name"
-                  name="middle_name"
-                  placeholder="Enter middle name"
-                  value={formData.middle_name}
-                  onChange={handleChange}
-                />
-              </div>
+              <input
+                type="text"
+                id="middle_name"
+                name="middle_name"
+                className="mt-1 w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter middle name"
+                value={formData.middle_name}
+                onChange={handleChange}
+              />
             </div>
 
             <div>
               <label htmlFor="username" className="block text-sm font-medium text-gray-300">
                 Username *
               </label>
-              <div className="mt-1">
-                <input
-                  type="text"
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg shadow-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-150"
-                  id="username"
-                  name="username"
-                  placeholder="Choose a username"
-                  value={formData.username}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
+              <input
+                type="text"
+                id="username"
+                name="username"
+                className="mt-1 w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Choose a username"
+                value={formData.username}
+                onChange={handleChange}
+                required
+              />
             </div>
 
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-300">
                 Email Address *
               </label>
-              <div className="mt-1">
-                <input
-                  type="email"
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg shadow-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-150"
-                  id="email"
-                  name="email"
-                  placeholder="Enter your email"
-                  value={formData.email}
-                  onChange={handleChange}
-                  required
-                />
-              </div>
+              <input
+                type="email"
+                id="email"
+                name="email"
+                className="mt-1 w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter your email"
+                value={formData.email}
+                onChange={handleChange}
+                required
+              />
             </div>
 
             <div>
               <label htmlFor="phone" className="block text-sm font-medium text-gray-300">
                 Phone Number (optional)
               </label>
-              <div className="mt-1">
-                <input
-                  type="tel"
-                  className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg shadow-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-150"
-                  id="phone"
-                  name="phone"
-                  placeholder="Enter phone number"
-                  value={formData.phone}
+              <input
+                type="tel"
+                id="phone"
+                name="phone"
+                className="mt-1 w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter phone number"
+                value={formData.phone}
+                onChange={handleChange}
+              />
+            </div>
+
+            {/* Programme Dropdown — REQUIRED */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="programme_id" className="block text-sm font-medium text-gray-300">
+                  Programme * {programmesLoading && <span className="text-xs text-gray-500">(loading...)</span>}
+                </label>
+                <select
+                  id="programme_id"
+                  name="programme_id"
+                  className="mt-1 w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={formData.programme_id}
                   onChange={handleChange}
-                />
+                  required
+                  disabled={programmesLoading}
+                >
+                  <option value="">-- Select Programme --</option>
+                  {programmes.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.code})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label htmlFor="year_of_study" className="block text-sm font-medium text-gray-300">
+                  Year of Study
+                </label>
+                <select
+                  id="year_of_study"
+                  name="year_of_study"
+                  className="mt-1 w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={formData.year_of_study}
+                  onChange={handleChange}
+                >
+                  <option value={1}>Year 1</option>
+                  <option value={2}>Year 2</option>
+                  <option value={3}>Year 3</option>
+                  <option value={4}>Year 4</option>
+                  <option value={5}>Year 5</option>
+                  <option value={6}>Year 6</option>
+                </select>
               </div>
             </div>
 
@@ -238,72 +284,46 @@ const Register = () => {
                 <label htmlFor="password" className="block text-sm font-medium text-gray-300">
                   Password *
                 </label>
-                <div className="mt-1">
-                  <input
-                    type="password"
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg shadow-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-150"
-                    id="password"
-                    name="password"
-                    placeholder="Min 8 characters"
-                    value={formData.password}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
-                <p className="mt-1 text-xs text-gray-400">
-                  Must contain uppercase, lowercase, number, and special character
-                </p>
+                <input
+                  type="password"
+                  id="password"
+                  name="password"
+                  className="mt-1 w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Min 8 characters"
+                  value={formData.password}
+                  onChange={handleChange}
+                  required
+                />
               </div>
               <div>
                 <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-300">
                   Confirm Password *
                 </label>
-                <div className="mt-1">
-                  <input
-                    type="password"
-                    className="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg shadow-sm text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition duration-150"
-                    id="confirmPassword"
-                    name="confirmPassword"
-                    placeholder="Confirm your password"
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                    required
-                  />
-                </div>
+                <input
+                  type="password"
+                  id="confirmPassword"
+                  name="confirmPassword"
+                  className="mt-1 w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Confirm your password"
+                  value={formData.confirmPassword}
+                  onChange={handleChange}
+                  required
+                />
               </div>
             </div>
 
-            <div className="bg-blue-900/30 p-4 rounded-lg border border-blue-700">
-              <p className="text-sm text-blue-300">
-                <svg className="inline h-5 w-5 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                </svg>
-                After registration, you'll need to login and select your programme from your dashboard.
-              </p>
-            </div>
-
-            <button 
-              type="submit" 
-              className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 focus:ring-offset-gray-800 transition duration-150 disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={loading}
+            <button
+              type="submit"
+              className="w-full py-2.5 px-4 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+              disabled={loading || programmesLoading}
             >
-              {loading ? (
-                <>
-                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Creating account...
-                </>
-              ) : (
-                'Create Account'
-              )}
+              {loading ? 'Creating account...' : 'Create Account'}
             </button>
 
             <div className="text-center">
               <p className="text-sm text-gray-400">
                 Already have an account?{' '}
-                <Link to="/login" className="font-medium text-blue-400 hover:text-blue-300 transition duration-150">
+                <Link to="/login" className="font-medium text-blue-400 hover:text-blue-300">
                   Sign In
                 </Link>
               </p>
@@ -311,7 +331,6 @@ const Register = () => {
           </form>
         </div>
 
-        {/* Footer */}
         <div className="text-center">
           <p className="text-xs text-gray-500">
             &copy; {new Date().getFullYear()} Somali National University. All rights reserved.
