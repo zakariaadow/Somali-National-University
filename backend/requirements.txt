@@ -15,10 +15,10 @@ gunicorn==21.2.0
 # Werkzeug
 werkzeug==2.3.6
 
-# Image / PDF / QR
-pillow==10.0.0
-reportlab==4.0.4
-qrcode==7.4.2
+# Image / PDF / QR (updated for Python 3.11+)
+pillow>=11.0.0
+reportlab>=4.2.0
+qrcode>=7.4.4
 
 # HTTP
 requests==2.31.0
