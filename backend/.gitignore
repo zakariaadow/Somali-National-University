@@ -8,3 +8,7 @@ __pycache__/
 *.pyc
 logs/
 uploads/
+# Session data (NEVER commit)
+flask_session/
+*_cookies.txt
+cookies.txt
