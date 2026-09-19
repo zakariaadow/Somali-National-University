@@ -23,8 +23,12 @@ def create_app():
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    # ---- CORS ----
-    CORS(app, origins=['http://localhost:3000', 'http://127.0.0.1:3000'],
+    # ---- CORS (from env, falls back to localhost) ----
+    cors_origins = os.getenv(
+        'CORS_ORIGINS',
+        'http://localhost:3000,http://127.0.0.1:3000'
+    ).split(',')
+    CORS(app, origins=[o.strip() for o in cors_origins],
          supports_credentials=True,
          allow_headers=['Content-Type', 'Authorization', 'X-Requested-With'],
          methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'])
@@ -57,7 +61,7 @@ def create_app():
     register_blueprints(app)
     print("✅ All routes registered!")
 
-    # ---- Supabase push loop (1-second interval, background thread) ----
+    # ---- Supabase push loop (background thread) ----
     from mirror import start_mirror
     start_mirror()
 
@@ -75,12 +79,9 @@ def create_app():
     if not os.path.exists('logs'):
         os.makedirs('logs')
 
-    return app
-
-
-if __name__ == '__main__':
-    app = create_app()
-
+    # ================================================================
+    # ---- DB initialization + seeding (runs under gunicorn AND flask run) ----
+    # ================================================================
     with app.app_context():
         try:
             print("\n📦 Importing models...")
@@ -94,13 +95,11 @@ if __name__ == '__main__':
             )
             print("✅ All models imported successfully!")
 
-            print("📊 Creating database tables (SQLite)...")
+            print("📊 Creating database tables...")
             db.create_all()
-            print("✅ SQLite tables created successfully!")
+            print("✅ Tables created/verified")
 
-            # NOTE: Mirror is already started in create_app() — nothing to do here.
-
-            print("👤 Creating default roles...")
+            print("👤 Ensuring default roles...")
             from models import Role
             if Role.query.count() == 0:
                 default_roles = [
@@ -118,25 +117,26 @@ if __name__ == '__main__':
             else:
                 print(f"✅ Roles already exist ({Role.query.count()} roles)")
 
-            print("👤 Creating admin user...")
+            print("👤 Ensuring admin user...")
             from models import User
             admin_role = Role.query.filter_by(name='Admin').first()
-            if admin_role and not User.query.filter_by(username='admin').first():
+            admin_username = os.getenv('ADMIN_USERNAME', 'admin')
+            if admin_role and not User.query.filter_by(username=admin_username).first():
                 admin_user = User(
-                    username='admin',
-                    email='admin@snu.edu.so',
-                    first_name='System',
-                    last_name='Administrator',
+                    username=admin_username,
+                    email=os.getenv('ADMIN_EMAIL', 'admin@snu.edu.so'),
+                    first_name=os.getenv('ADMIN_FIRST_NAME', 'System'),
+                    last_name=os.getenv('ADMIN_LAST_NAME', 'Administrator'),
                     role_id=admin_role.id,
                     is_active=True,
                     is_verified=True
                 )
-                admin_user.set_password('Admin@2024')
+                admin_user.set_password(
+                    os.getenv('ADMIN_PASSWORD', 'Admin@2024')
+                )
                 db.session.add(admin_user)
                 db.session.commit()
-                print("✅ Admin user created!")
-                print("   👤 Username: admin")
-                print("   🔑 Password: Admin@2024")
+                print(f"✅ Admin user created: {admin_username}")
             else:
                 print("✅ Admin user already exists")
 
@@ -147,7 +147,18 @@ if __name__ == '__main__':
             import traceback
             traceback.print_exc()
 
+    return app
+
+
+if __name__ == '__main__':
+    app = create_app()
+    port = int(os.getenv('FLASK_PORT', os.getenv('PORT', 5000)))
+    debug = os.getenv('FLASK_DEBUG', 'False').lower() == 'true'
+
     print("\n🚀 Starting SNU API Server...")
+    print(f"   Host: 0.0.0.0")
+    print(f"   Port: {port}")
+    print(f"   Debug: {debug}")
     print("📍 Available endpoints:")
     print("   GET  /api/colleges")
     print("   GET  /api/faculties")
@@ -158,6 +169,6 @@ if __name__ == '__main__':
     print("   POST /api/auth/register")
     print("   GET  /api/auth/profile")
     print("   And many more...")
-    print("\n" + "="*50)
+    print("\n" + "=" * 50)
 
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=debug, host='0.0.0.0', port=port)
