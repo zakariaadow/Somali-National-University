@@ -1,6 +1,6 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "https://somali-national-university.onrender.com/api/$1" },
+    { "source": "/api/(.*)", "destination": "https://somali-national-university-1.onrender.com/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
